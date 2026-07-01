@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>P.M Food – เข้าสู่ระบบ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Sarabun',Tahoma,sans-serif}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#0f2744 0%,#1e3a5f 45%,#1d4ed8 100%);padding:16px}
+.card{background:#fff;border-radius:24px;box-shadow:0 25px 60px rgba(0,0,0,.3);width:100%;max-width:420px;padding:40px 36px}
+.logo-wrap{text-align:center;margin-bottom:32px}
+.logo-box{display:inline-flex;align-items:center;justify-content:center;width:76px;height:76px;
+  border-radius:20px;background:linear-gradient(135deg,#1e3a5f,#3b82f6);
+  box-shadow:0 8px 24px rgba(37,99,235,.4);margin-bottom:16px}
+.logo-box svg{width:38px;height:38px;fill:#fff}
+h1{font-size:28px;font-weight:700;color:#1e293b}
+.sub{font-size:14px;color:#64748b;margin-top:4px}
+.divider{width:48px;height:4px;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:99px;margin:12px auto 0}
+.err-box{display:none;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;
+  border-radius:12px;padding:12px 16px;font-size:13px;margin-bottom:16px;align-items:center;gap:8px}
+.err-box.show{display:flex}
+label{display:block;font-size:14px;font-weight:600;color:#374151;margin-bottom:6px}
+.inp-wrap{position:relative}
+input[type=text],input[type=password]{width:100%;padding:12px 16px;border:1.5px solid #e2e8f0;
+  border-radius:12px;font-size:14px;color:#1e293b;background:#f8fafc;outline:none;transition:all .2s;font-family:inherit}
+input:focus{border-color:#2563eb;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:4px}
+.field{margin-bottom:20px}
+.btn{width:100%;padding:14px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;
+  border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;
+  transition:all .25s;font-family:inherit;margin-top:4px}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(37,99,235,.4)}
+.btn:disabled{opacity:.7;cursor:not-allowed;transform:none}
+.hint{margin-top:20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;
+  border-radius:12px;font-size:12px;color:#64748b}
+.hint b{color:#2563eb;font-family:monospace;font-size:13px}
+.hint-title{font-weight:600;color:#475569;margin-bottom:6px}
+.footer{text-align:center;font-size:11px;color:#94a3b8;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-wrap">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24"><path d="M2 20h20v2H2v-2zm2-8h2v7H4v-7zm5-3h2v10H9V9zm5-4h2v14h-2V5zm5 7h2v7h-2v-7z"/></svg>
+    </div>
+    <h1>P.M Food</h1>
+    <p class="sub">ระบบจัดการ OT และสายรถ</p>
+    <div class="divider"></div>
+  </div>
+
+  <div class="err-box" id="errBox"><span>⚠️</span><span id="errMsg"></span></div>
+
+  <form id="loginForm">
+    <div class="field">
+      <label>👤 Username</label>
+      <input type="text" id="username" placeholder="กรอก Username" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label>🔒 Password</label>
+      <div class="inp-wrap">
+        <input type="password" id="password" placeholder="กรอก Password" autocomplete="current-password" required>
+        <button type="button" class="eye-btn" id="eyeBtn">👁</button>
+      </div>
+    </div>
+    <button type="submit" class="btn" id="submitBtn">เข้าสู่ระบบ</button>
+  </form>
+
+  <div class="hint">
+    <div class="hint-title">ℹ️ ข้อมูล Login</div>
+    <div>• HR Admin → <b>hr</b> / รหัส <b>hr1234</b></div>
+    <div style="margin-top:4px">• หัวหน้าแผนก → username แผนก / รหัส <b>1234</b></div>
+  </div>
+  <p class="footer">© 2024 P.M Food Co., Ltd.</p>
+</div>
+
+<script>
+document.getElementById('eyeBtn').onclick = function(){
+  var p = document.getElementById('password');
+  p.type = p.type==='password' ? 'text' : 'password';
+  this.textContent = p.type==='password' ? '👁' : '🙈';
+};
+document.getElementById('loginForm').onsubmit = async function(e){
+  e.preventDefault();
+  var btn=document.getElementById('submitBtn'), eb=document.getElementById('errBox'), em=document.getElementById('errMsg');
+  eb.classList.remove('show'); btn.disabled=true; btn.textContent='กำลังเข้าสู่ระบบ...';
+  try{
+    var r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:document.getElementById('username').value.trim(),
+        password:document.getElementById('password').value})});
+    var d=await r.json();
+    if(d.success){ btn.textContent='✓ สำเร็จ!';
+      location.href = d.user.role==='hr' ? '/pages/dashboard.html' : '/pages/ot-entry.html';
+    } else { em.textContent=d.message; eb.classList.add('show'); btn.disabled=false; btn.textContent='เข้าสู่ระบบ'; }
+  }catch(err){ em.textContent='ไม่สามารถเชื่อมต่อ Server'; eb.classList.add('show'); btn.disabled=false; btn.textContent='เข้าสู่ระบบ'; }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>P.M Food – Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');*{font-family:'Sarabun',sans-serif}</style>
+</head>
+<body class="bg-gray-50">
+<script src="/js/app.js"></script>
+<script>
+(async()=>{
+  if(!await App.init('Dashboard','ภาพรวมระบบ OT ประจำวัน')) return;
+  load(App.getDate());
+  window._onDateChange = d => load(d);
+})();
+
+async function load(date){
+  App.loading(true);
+  try{
+    const [s1,s2]=await Promise.all([
+      fetch(`/api/ot/summary-ot?date=${date}`).then(r=>r.json()),
+      fetch(`/api/ot/summary-bus?date=${date}`).then(r=>r.json())
+    ]);
+    const depts=s1.data||[], buses=s2.data||[];
+    const gOT=s1.grand_ot||0, gNon=s1.grand_non_ot||0, gTotal=s1.grand_total||0;
+    const busActive=buses.filter(b=>b.total_count>0).length;
+
+    document.getElementById('pageContent').innerHTML=`
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        ${sc('ทำ OT รวม',gOT,'fa-clock','#2563eb')}
+        ${sc('ไม่ทำ OT',gNon,'fa-house','#64748b')}
+        ${sc('รวมทั้งหมด',gTotal,'fa-users','#6366f1')}
+        ${sc('สายรถมีพนักงาน',busActive,'fa-bus','#0891b2')}
+      </div>
+      <div class="grid lg:grid-cols-5 gap-6 mb-6">
+        <div class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <i class="fas fa-chart-bar text-blue-500"></i> OT รายแผนก
+            <span class="text-xs text-slate-400 font-normal ml-auto">${App.dateThLong(date)}</span>
+          </h3>
+          <div style="position:relative;height:200px"><canvas id="chart1"></canvas></div>
+        </div>
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 overflow-auto">
+          <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <i class="fas fa-table text-blue-500"></i> สรุปรายแผนก
+          </h3>
+          <table class="w-full text-xs">
+            <thead><tr class="bg-gray-50">
+              <th class="text-left px-2 py-2 text-slate-500">แผนก</th>
+              <th class="text-center px-2 py-2 text-blue-600">OT</th>
+              <th class="text-center px-2 py-2 text-slate-500">ไม่OT</th>
+              <th class="text-center px-2 py-2 text-slate-700">รวม</th>
+            </tr></thead>
+            <tbody>${depts.filter(d=>Number(d.ot_total)+Number(d.non_ot_total)>0).map(d=>`
+              <tr class="border-t border-gray-50 hover:bg-gray-50">
+                <td class="px-2 py-1.5 text-slate-700 truncate max-w-[100px]" title="${d.name_th}">${d.name_th}</td>
+                <td class="px-2 py-1.5 text-center"><span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">${d.ot_total}</span></td>
+                <td class="px-2 py-1.5 text-center text-slate-500">${d.non_ot_total}</td>
+                <td class="px-2 py-1.5 text-center font-bold">${Number(d.ot_total)+Number(d.non_ot_total)}</td>
+              </tr>`).join('')||'<tr><td colspan="4" class="text-center py-6 text-slate-400">ยังไม่มีข้อมูล</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <i class="fas fa-bus text-blue-500"></i> สายรถที่มีพนักงาน
+          <a href="/pages/bus-schedule.html" class="ml-auto text-xs text-blue-600 hover:underline">ดูทั้งหมด →</a>
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 text-slate-500 text-xs">
+              <th class="text-left px-3 py-2">สายรถ</th>
+              <th class="text-center px-3 py-2">มาทั้งหมด</th>
+              <th class="text-center px-3 py-2 text-blue-600">OT 19:00</th>
+              <th class="text-center px-3 py-2">เลิก 16:00</th>
+            </tr></thead>
+            <tbody>${buses.filter(b=>Number(b.total_count)>0).slice(0,12).map(b=>`
+              <tr class="border-t border-gray-50 hover:bg-gray-50">
+                <td class="px-3 py-2 font-medium text-slate-700">สาย ${b.route_number} <span class="text-slate-400 font-normal">${b.route_name}</span></td>
+                <td class="px-3 py-2 text-center font-semibold">${b.total_count}</td>
+                <td class="px-3 py-2 text-center"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold">${b.ot_total}</span></td>
+                <td class="px-3 py-2 text-center text-slate-500">${b.non_ot_total}</td>
+              </tr>`).join('')||'<tr><td colspan="4" class="text-center py-6 text-slate-400">ยังไม่มีข้อมูล</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+
+    // Chart
+    const active=depts.filter(d=>Number(d.ot_total)+Number(d.non_ot_total)>0);
+    if(active.length){
+      new Chart(document.getElementById('chart1'),{
+        type:'bar',
+        data:{
+          labels:active.map(d=>d.name_th.length>8?d.name_th.slice(0,8)+'…':d.name_th),
+          datasets:[
+            {label:'ทำ OT',data:active.map(d=>Number(d.ot_total)),backgroundColor:'rgba(37,99,235,.8)',borderRadius:5},
+            {label:'ไม่ทำ OT',data:active.map(d=>Number(d.non_ot_total)),backgroundColor:'rgba(148,163,184,.7)',borderRadius:5}
+          ]
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{labels:{font:{family:'Sarabun',size:11}}}},
+          scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{ticks:{font:{family:'Sarabun',size:10}}}}}
+      });
+    }
+  }catch(e){App.toast('โหลดข้อมูลไม่ได้','error');}
+  finally{App.loading(false);}
+}
+
+function sc(label,val,icon,color){
+  return `<div style="background:#fff;border-radius:16px;border:1px solid #f1f5f9;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div><p style="color:#64748b;font-size:13px">${label}</p><p style="font-size:28px;font-weight:700;color:#1e293b;margin-top:4px">${val}</p></div>
+      <div style="width:44px;height:44px;background:${color};border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="fas ${icon}" style="color:#fff;font-size:18px"></i></div>
+    </div></div>`;
+}
+</script>
+</body></html>

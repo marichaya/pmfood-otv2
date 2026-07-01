@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>P.M Food – รวมจำนวน OT</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Sarabun',sans-serif}
+body{background:#f8fafc}
+.stat-card{border-radius:16px;padding:20px;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+thead th{background:#1e3a5f;color:#fff;padding:12px 20px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:5}
+tbody tr:hover{background:#f0f9ff}
+tbody tr{border-top:1px solid #f1f5f9}
+tbody td{padding:12px 20px;font-size:14px}
+tfoot td{padding:12px 20px;background:#eff6ff;border-top:2px solid #bfdbfe;font-weight:700;font-size:15px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:10px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:all .2s;font-family:inherit}
+</style>
+</head>
+<body>
+<script src="/js/app.js"></script>
+<script>
+(async()=>{
+  if(!await App.init('รวมจำนวน OT','สรุปรายแผนก — ดึงข้อมูลจากทุกแผนกอัตโนมัติ')) return;
+  if(App.user.role!=='hr'){location.href='/pages/ot-entry.html';return;}
+  load(App.getDate());
+  window._onDateChange=d=>load(d);
+})();
+
+async function load(date){
+  App.loading(true);
+  const pc=document.getElementById('pageContent');
+  try{
+    const r=await fetch(`/api/ot/summary-ot?date=${date}`).then(r=>r.json());
+    const depts=r.data||[], gOT=r.grand_ot||0, gNon=r.grand_non_ot||0, gTotal=r.grand_total||0;
+    pc.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+        <div class="stat-card" style="background:linear-gradient(135deg,#1d4ed8,#3b82f6)">
+          <p style="font-size:14px;opacity:.85">ทำ OT รวม</p>
+          <p style="font-size:40px;font-weight:700;margin-top:4px">${gOT}</p><p style="font-size:12px;opacity:.7">คน</p>
+        </div>
+        <div class="stat-card" style="background:linear-gradient(135deg,#475569,#64748b)">
+          <p style="font-size:14px;opacity:.85">ไม่ทำ OT รวม</p>
+          <p style="font-size:40px;font-weight:700;margin-top:4px">${gNon}</p><p style="font-size:12px;opacity:.7">คน</p>
+        </div>
+        <div class="stat-card" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
+          <p style="font-size:14px;opacity:.85">รวมทั้งหมด</p>
+          <p style="font-size:40px;font-weight:700;margin-top:4px">${gTotal}</p><p style="font-size:12px;opacity:.7">คน</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <button class="btn" onclick="App.exportExcel()" style="background:#16a34a;color:#fff">
+          <i class="fas fa-file-excel"></i> Export Excel</button>
+        <button class="btn" onclick="App.exportPDF()" style="background:#dc2626;color:#fff">
+          <i class="fas fa-file-pdf"></i> Export PDF</button>
+      </div>
+      <div style="background:#fff;border-radius:16px;border:1px solid #f1f5f9;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+        <div style="background:linear-gradient(90deg,#1e3a5f,#1e40af);padding:16px 24px;display:flex;align-items:center;justify-content:space-between">
+          <h3 style="color:#fff;font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px">
+            <i class="fas fa-table-list" style="color:#93c5fd"></i> รวมจำนวน OT รายแผนก
+          </h3>
+          <span style="color:#93c5fd;font-size:13px">${App.dateThLong(date)}</span>
+        </div>
+        <div style="padding:12px 20px;border-bottom:1px solid #f1f5f9">
+          <input type="text" id="srch" placeholder="🔍 ค้นหาแผนก..." oninput="filter(this.value)"
+            style="border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 14px;font-size:14px;outline:none;width:250px;font-family:inherit">
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="text-align:left;width:40px">#</th>
+              <th style="text-align:left">หน่วยงาน (แผนก)</th>
+              <th style="text-align:center;width:120px;color:#93c5fd">ทำ OT</th>
+              <th style="text-align:center;width:120px">ไม่ทำ OT</th>
+              <th style="text-align:center;width:100px">รวม</th>
+              <th style="text-align:center;width:80px">%OT</th>
+            </tr></thead>
+            <tbody id="dBody">${depts.map((d,i)=>`
+              <tr>
+                <td style="color:#cbd5e1;font-size:12px">${i+1}</td>
+                <td style="font-weight:500;color:#1e293b">${d.name_th}</td>
+                <td style="text-align:center"><span style="background:#dbeafe;color:#1d4ed8;padding:3px 12px;border-radius:99px;font-weight:700">${d.ot_total}</span></td>
+                <td style="text-align:center;color:#64748b">${d.non_ot_total}</td>
+                <td style="text-align:center;font-weight:700;color:#1e293b">${Number(d.ot_total)+Number(d.non_ot_total)}</td>
+                <td style="text-align:center;font-size:12px;color:#64748b">${Number(d.ot_total)+Number(d.non_ot_total)>0?Math.round(Number(d.ot_total)/(Number(d.ot_total)+Number(d.non_ot_total))*100)+'%':'-'}</td>
+              </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:40px;color:#94a3b8">ยังไม่มีข้อมูล</td></tr>'}
+            </tbody>
+            <tfoot><tr>
+              <td></td><td>รวม (ยอดรวม)</td>
+              <td style="text-align:center;color:#1d4ed8">${gOT}</td>
+              <td style="text-align:center;color:#64748b">${gNon}</td>
+              <td style="text-align:center;color:#1e293b">${gTotal}</td>
+              <td style="text-align:center;color:#64748b;font-size:13px">${gTotal>0?Math.round(gOT/gTotal*100)+'%':'-'}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </div>`;
+  }catch(e){App.toast('โหลดข้อมูลไม่ได้','error');}
+  finally{App.loading(false);}
+}
+
+function filter(q){
+  document.querySelectorAll('#dBody tr').forEach(tr=>{
+    tr.style.display=tr.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';
+  });
+}
+</script>
+</body></html>

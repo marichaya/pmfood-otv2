@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>P.M Food – ลงข้อมูล OT</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Sarabun',sans-serif}
+body{background:#f8fafc}
+.card{background:#fff;border-radius:16px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:16px;padding:16px 20px}
+.num{width:68px;text-align:center;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 4px;font-size:14px;background:#f8fafc;outline:none;transition:all .2s;font-family:inherit}
+.num:focus{border-color:#3b82f6;background:#fff;box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+thead th{position:sticky;top:0;z-index:5;background:#1e3a5f;color:#fff;padding:10px 14px;font-weight:600;font-size:13px}
+tbody tr:hover{background:#f8fafc}
+tbody tr{border-top:1px solid #f1f5f9;transition:background .15s}
+tbody td{padding:8px 14px;font-size:14px}
+tfoot td{padding:10px 14px;background:#eff6ff;border-top:2px solid #bfdbfe;font-weight:700}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:10px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn-green{background:#16a34a;color:#fff}.btn-green:hover{background:#15803d}
+.btn-gray{background:#f1f5f9;color:#475569}.btn-gray:hover{background:#e2e8f0}
+.badge-ot{background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:700}
+select.dept-sel{border:1.5px solid #e2e8f0;border-radius:10px;padding:8px 12px;font-size:14px;background:#f8fafc;outline:none;font-family:inherit}
+select.dept-sel:focus{border-color:#3b82f6}
+</style>
+</head>
+<body>
+<script src="/js/app.js"></script>
+<script>
+let allRoutes=[], depts=[], curDept=null;
+
+(async()=>{
+  if(!await App.init('ลงข้อมูล OT','บันทึกจำนวนพนักงานทำ OT ต่อสายรถ')) return;
+  const u=App.user;
+  const [rr,dr]=await Promise.all([
+    fetch('/api/bus/routes').then(r=>r.json()),
+    u.role==='hr' ? fetch('/api/departments').then(r=>r.json()) : Promise.resolve({success:true,data:[]})
+  ]);
+  allRoutes=rr.data||[]; depts=dr.data||[];
+  curDept = u.role==='department' ? u.department_id : (depts[0]?.id||null);
+  renderPage();
+  loadData(App.getDate());
+  window._onDateChange = d => loadData(d);
+})();
+
+function renderPage(){
+  const isHR=App.user.role==='hr';
+  document.getElementById('pageContent').innerHTML=`
+    <div class="card">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+        ${isHR?`<div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:14px;font-weight:600;color:#374151">แผนก:</label>
+          <select class="dept-sel" id="deptSel" onchange="onDeptChange(this.value)">
+            ${depts.map(d=>`<option value="${d.id}">${d.name_th}</option>`).join('')}
+          </select></div>`:`
+          <div style="display:flex;align-items:center;gap:8px">
+            <i class="fas fa-building" style="color:#3b82f6"></i>
+            <span style="font-weight:600;color:#1e293b">${App.user.dept_name||App.user.display_name}</span>
+          </div>`}
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gray" onclick="resetTable()"><i class="fas fa-rotate-left"></i> ล้างตาราง</button>
+          <button class="btn btn-green" onclick="saveAll()"><i class="fas fa-floppy-disk"></i> บันทึก</button>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+        <label style="font-size:14px;color:#64748b;font-weight:500">ลงชื่อผู้บันทึก:</label>
+        <input id="recorder" type="text" placeholder="ชื่อผู้บันทึก"
+          style="border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:14px;outline:none;width:180px;font-family:inherit">
+        <span style="font-size:12px;color:#94a3b8">ประจำวันที่ <b id="dateLbl" style="color:#475569"></b></span>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:8px">
+        <i class="fas fa-clock" style="color:#3b82f6;font-size:13px"></i>
+        <span style="font-size:14px;color:#475569">ทำ OT: <strong id="sumOT" style="color:#1d4ed8">0</strong> คน</span>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:8px">
+        <i class="fas fa-house" style="color:#94a3b8;font-size:13px"></i>
+        <span style="font-size:14px;color:#475569">ไม่ทำ OT: <strong id="sumNon" style="color:#64748b">0</strong> คน</span>
+      </div>
+      <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:8px">
+        <i class="fas fa-users" style="color:#7c3aed;font-size:13px"></i>
+        <span style="font-size:14px;color:#475569">รวม: <strong id="sumTot" style="color:#6d28d9">0</strong> คน</span>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div style="background:#fff;border-radius:16px;border:1px solid #f1f5f9;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+      <div style="max-height:calc(100vh - 330px);overflow-y:auto;overflow-x:auto">
+        <table style="width:100%;min-width:600px;border-collapse:collapse">
+          <thead>
+            <tr>
+              <th style="text-align:left;min-width:170px">สายรถ</th>
+              <th style="text-align:center;width:100px">จุดงาน</th>
+              <th style="text-align:center;width:120px;background:#1e3a8a">
+                เลิก 19:00<br><span style="font-size:11px;font-weight:400;color:#93c5fd">ทำ OT</span>
+              </th>
+              <th style="text-align:center;width:120px">
+                เลิก 16:00<br><span style="font-size:11px;font-weight:400;color:#94a3b8">ไม่ทำ OT</span>
+              </th>
+              <th style="text-align:center;width:70px;color:#94a3b8;font-weight:400;font-size:12px">รวม</th>
+            </tr>
+          </thead>
+          <tbody id="otBody"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="color:#1e3a5f">รวมทั้งหมด (SUM)</td>
+              <td style="text-align:center;color:#1d4ed8;font-size:16px" id="ftOT">0</td>
+              <td style="text-align:center;color:#64748b;font-size:16px" id="ftNon">0</td>
+              <td style="text-align:center;color:#1e293b;font-size:16px" id="ftTot">0</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+}
+
+function onDeptChange(id){ curDept=parseInt(id); loadData(App.getDate()); }
+
+async function loadData(date){
+  const lbl=document.getElementById('dateLbl');
+  if(lbl) lbl.textContent=App.dateThLong(date);
+  if(!curDept) return;
+  App.loading(true);
+  try{
+    const r=await fetch(`/api/ot/dept-data?date=${date}&dept_id=${curDept}`).then(r=>r.json());
+    document.getElementById('recorder').value=r.recorder_name||'';
+    buildTable(r.data||[]);
+  }catch(e){App.toast('โหลดข้อมูลไม่ได้','error');}
+  finally{App.loading(false);}
+}
+
+function buildTable(rows){
+  const tb=document.getElementById('otBody'); if(!tb) return;
+  tb.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.dataset.id=r.bus_route_id;
+    const label=r.route_number==='0'?'มาเอง':`สาย ${r.route_number} <span style="color:#94a3b8;font-weight:400">${r.route_name}</span>`;
+    tr.innerHTML=`
+      <td style="font-weight:500;color:#334155">${label}</td>
+      <td style="text-align:center;font-size:12px;color:#94a3b8">${r.job_zone||''}</td>
+      <td style="text-align:center"><input type="number" min="0" max="999" value="${r.ot_count}" class="num ot-n"></td>
+      <td style="text-align:center"><input type="number" min="0" max="999" value="${r.non_ot_count}" class="num non-n"></td>
+      <td style="text-align:center;font-size:12px;font-weight:600;color:#64748b" class="row-tot">${Number(r.ot_count)+Number(r.non_ot_count)}</td>`;
+    tr.querySelectorAll('.num').forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        const ot=parseInt(tr.querySelector('.ot-n').value)||0;
+        const nn=parseInt(tr.querySelector('.non-n').value)||0;
+        tr.querySelector('.row-tot').textContent=ot+nn;
+        updateSums();
+      });
+    });
+    tb.appendChild(tr);
+  });
+  updateSums();
+}
+
+function updateSums(){
+  let ot=0,nn=0;
+  document.querySelectorAll('#otBody .ot-n').forEach(e=>ot+=parseInt(e.value)||0);
+  document.querySelectorAll('#otBody .non-n').forEach(e=>nn+=parseInt(e.value)||0);
+  ['sumOT','ftOT'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=ot;});
+  ['sumNon','ftNon'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=nn;});
+  ['sumTot','ftTot'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=ot+nn;});
+}
+
+function resetTable(){
+  if(!confirm('ต้องการล้างตัวเลขทั้งหมดในตาราง?')) return;
+  document.querySelectorAll('#otBody .ot-n, #otBody .non-n').forEach(e=>e.value=0);
+  document.querySelectorAll('#otBody .row-tot').forEach(e=>e.textContent=0);
+  updateSums();
+}
+
+async function saveAll(){
+  const date=App.getDate(), recorder=document.getElementById('recorder')?.value||'';
+  const rows=[];
+  document.querySelectorAll('#otBody tr[data-id]').forEach(tr=>{
+    rows.push({bus_route_id:parseInt(tr.dataset.id),ot_count:parseInt(tr.querySelector('.ot-n').value)||0,non_ot_count:parseInt(tr.querySelector('.non-n').value)||0});
+  });
+  if(!rows.length){App.toast('ไม่มีข้อมูลในตาราง','warning');return;}
+  App.loading(true);
+  try{
+    const r=await fetch('/api/ot/save-dept',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({date,department_id:curDept,rows,recorder_name:recorder})}).then(r=>r.json());
+    if(r.success) App.toast('บันทึกสำเร็จ ✓','success');
+    else App.toast('บันทึกไม่สำเร็จ: '+r.message,'error');
+  }catch(e){App.toast('เกิดข้อผิดพลาด','error');}
+  finally{App.loading(false);}
+}
+</script>
+</body></html>
